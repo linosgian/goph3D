@@ -107,6 +107,16 @@ func (s *Shader) SetUniform1i(name string, val int32) error {
 	gl.Uniform1i(location, val)
 	return nil
 }
+
+func (s *Shader) SetMat4(name string, v *float32) error {
+	location, err := s.GetUniformLocation(name)
+	if err != nil {
+		return err
+	}
+	gl.UniformMatrix4fv(location, 1, false, v)
+	return nil
+}
+
 func (s *Shader) SetUniform4f(name string, v0, v1, v2, v3 float32) error {
 	location, err := s.GetUniformLocation(name)
 	if err != nil {

@@ -15,6 +15,8 @@ import (
 const (
 	FLOAT  = gl.FLOAT
 	UINT32 = gl.UNSIGNED_INT
+	WIDTH  = 800
+	HEIGHT = 600
 )
 
 // Calculate the byte-size of all types at runtime
@@ -24,10 +26,10 @@ var sizes map[int]int = map[int]int{
 }
 
 const (
-	projectRoot      = "src/github.com/linosgian/glfw-test2"
-	fragmentFilepath = "res/shaders/fragment.glsl"
-	vertexFilepath   = "res/shaders/vertex.glsl"
-	texturePath      = "res/textures/face.png"
+	projectRoot  = "src/github.com/linosgian/glfw-test2"
+	fragmentPath = "res/shaders/fragment.glsl"
+	vertexPath   = "res/shaders/vertex.glsl"
+	texturePath  = "res/textures/container.jpg"
 )
 
 var tri = []float32{
@@ -63,19 +65,19 @@ func main() {
 
 	// Instantiate all data needed for rendering
 	vb := NewVertexBuffer(tri, len(tri)*sizes[FLOAT])
-
 	va := NewVertexArray()
 
-	vbl := &VertexBufferLayout{Stride: 0}
+	vbl := new(VertexBufferLayout)
 	vbl.PushFloat(2) // position: a fvec2
 	vbl.PushFloat(3) // color: a fvec3
 	vbl.PushFloat(2) // texture: a fvec2
+
 	va.AddBuffer(&vb, vbl)
 
 	ib := NewIndexBuffer(indices)
 
 	// Create a new Shader
-	shader, err := NewShader(path.Join(rootPath, vertexFilepath), path.Join(rootPath, fragmentFilepath))
+	shader, err := NewShader(path.Join(rootPath, vertexPath), path.Join(rootPath, fragmentPath))
 	if err != nil {
 		log.Fatalf("could not create shader program: %v\n", err)
 	}
@@ -89,7 +91,9 @@ func main() {
 	t.Bind(0)
 	shader.SetUniform1i("u_Texture\x00", 0)
 
+	// Initialize renderer
 	r := Renderer{}
+
 	// Clear all state before game loop
 	va.Unbind()
 	vb.Unbind()
@@ -118,7 +122,7 @@ func initGLFW() (*glfw.Window, error) {
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
 
-	window, err := glfw.CreateWindow(1024, 680, "3D Gamez", nil, nil)
+	window, err := glfw.CreateWindow(WIDTH, HEIGHT, "3D Gamez", nil, nil)
 	if err != nil {
 		return nil, err
 	}
