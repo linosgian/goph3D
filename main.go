@@ -10,6 +10,14 @@ import (
 
 	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
+	"github.com/go-gl/mathgl/mgl32"
+)
+
+const (
+	projectRoot  = "src/github.com/linosgian/glfw-test2"
+	fragmentPath = "res/shaders/fragment.glsl"
+	vertexPath   = "res/shaders/vertex.glsl"
+	texturePath  = "res/textures/container.jpg"
 )
 
 const (
@@ -19,18 +27,63 @@ const (
 	HEIGHT = 600
 )
 
+var (
+	lastX      float64 = WIDTH / 2.0
+	lastY      float64 = HEIGHT / 2.0
+	firstMouse bool    = true
+	deltaTime  float64 = 0
+	lastFrame  float64 = 0
+)
+
 // Calculate the byte-size of all types at runtime
 var sizes map[int]int = map[int]int{
 	FLOAT:  int(unsafe.Sizeof(float32(0))),
 	UINT32: int(unsafe.Sizeof(uint32(0))),
 }
 
-const (
-	projectRoot  = "src/github.com/linosgian/glfw-test2"
-	fragmentPath = "res/shaders/fragment.glsl"
-	vertexPath   = "res/shaders/vertex.glsl"
-	texturePath  = "res/textures/container.jpg"
-)
+var cube = []float32{
+	-0.5, -0.5, -0.5, 0.0, 0.0,
+	0.5, -0.5, -0.5, 1.0, 0.0,
+	0.5, 0.5, -0.5, 1.0, 1.0,
+	0.5, 0.5, -0.5, 1.0, 1.0,
+	-0.5, 0.5, -0.5, 0.0, 1.0,
+	-0.5, -0.5, -0.5, 0.0, 0.0,
+
+	-0.5, -0.5, 0.5, 0.0, 0.0,
+	0.5, -0.5, 0.5, 1.0, 0.0,
+	0.5, 0.5, 0.5, 1.0, 1.0,
+	0.5, 0.5, 0.5, 1.0, 1.0,
+	-0.5, 0.5, 0.5, 0.0, 1.0,
+	-0.5, -0.5, 0.5, 0.0, 0.0,
+
+	-0.5, 0.5, 0.5, 1.0, 0.0,
+	-0.5, 0.5, -0.5, 1.0, 1.0,
+	-0.5, -0.5, -0.5, 0.0, 1.0,
+	-0.5, -0.5, -0.5, 0.0, 1.0,
+	-0.5, -0.5, 0.5, 0.0, 0.0,
+	-0.5, 0.5, 0.5, 1.0, 0.0,
+
+	0.5, 0.5, 0.5, 1.0, 0.0,
+	0.5, 0.5, -0.5, 1.0, 1.0,
+	0.5, -0.5, -0.5, 0.0, 1.0,
+	0.5, -0.5, -0.5, 0.0, 1.0,
+	0.5, -0.5, 0.5, 0.0, 0.0,
+	0.5, 0.5, 0.5, 1.0, 0.0,
+
+	-0.5, -0.5, -0.5, 0.0, 1.0,
+	0.5, -0.5, -0.5, 1.0, 1.0,
+	0.5, -0.5, 0.5, 1.0, 0.0,
+	0.5, -0.5, 0.5, 1.0, 0.0,
+	-0.5, -0.5, 0.5, 0.0, 0.0,
+	-0.5, -0.5, -0.5, 0.0, 1.0,
+
+	-0.5, 0.5, -0.5, 0.0, 1.0,
+	0.5, 0.5, -0.5, 1.0, 1.0,
+	0.5, 0.5, 0.5, 1.0, 0.0,
+	0.5, 0.5, 0.5, 1.0, 0.0,
+	-0.5, 0.5, 0.5, 0.0, 0.0,
+	-0.5, 0.5, -0.5, 0.0, 1.0,
+}
 
 var tri = []float32{
 	// X, Y / R, G, B / S, T
@@ -42,15 +95,17 @@ var tri = []float32{
 
 // Indices must be uint32 instead of uint
 // in order to match gl.UNSIGNED_INT
-var indices = []uint32{
+var triIndices = []uint32{
 	0, 1, 2,
 	2, 3, 0,
 }
 
+//Initialize camera object
+var cam = NewCamera(mgl32.Vec3{0, 0, 7})
+
 func main() {
 	rootPath := path.Join(os.Getenv("GOPATH"), projectRoot)
 	// This is needed to arrange that main() runs on main thread.
-	// See documentation for functions that are only allowed to be called from the main thread.
 	runtime.LockOSThread()
 
 	window, err := initGLFW()
@@ -63,18 +118,22 @@ func main() {
 		log.Fatalf("OpenGL could not be initialized: %v\n", err)
 	}
 
+	// Set Input callbacks
+	window.SetCursorPosCallback(MouseCallback)
+	window.SetInputMode(glfw.CursorMode, glfw.CursorDisabled)
+
 	// Instantiate all data needed for rendering
-	vb := NewVertexBuffer(tri, len(tri)*sizes[FLOAT])
+	vb := NewVertexBuffer(cube, len(cube)*sizes[FLOAT])
 	va := NewVertexArray()
 
 	vbl := new(VertexBufferLayout)
-	vbl.PushFloat(2) // position: a fvec2
-	vbl.PushFloat(3) // color: a fvec3
+	vbl.PushFloat(3) // position: a fvec2
+	// vbl.PushFloat(3) // color: a fvec3
 	vbl.PushFloat(2) // texture: a fvec2
 
 	va.AddBuffer(&vb, vbl)
 
-	ib := NewIndexBuffer(indices)
+	// ib := NewIndexBuffer(cubeIndices)
 
 	// Create a new Shader
 	shader, err := NewShader(path.Join(rootPath, vertexPath), path.Join(rootPath, fragmentPath))
@@ -98,12 +157,20 @@ func main() {
 	va.Unbind()
 	vb.Unbind()
 	shader.Unbind()
-	ib.Unbind()
+	// ib.Unbind()
 
+	gl.Enable(gl.DEPTH_TEST)
 	for !window.ShouldClose() {
+		// Per-frame time
+		currentFrame := glfw.GetTime()
+		deltaTime = currentFrame - lastFrame
+		lastFrame = currentFrame
+
 		r.Clear()
 
-		r.Draw(va, ib, shader)
+		processInput(window)
+		// r.Draw(va, ib, shader)
+		r.DrawRaw(va, cam, shader)
 
 		window.SwapBuffers()
 		glfw.PollEvents()
@@ -156,4 +223,36 @@ func Debug(
 	userParam unsafe.Pointer,
 ) {
 	fmt.Printf("[OpenGL Error]: %q\n", message)
+}
+
+func processInput(w *glfw.Window) {
+	if w.GetKey(glfw.KeyEscape) == glfw.Press {
+		w.SetShouldClose(true)
+	}
+	if w.GetKey(glfw.KeyW) == glfw.Press {
+		cam.ProcessKeyboard(FORWARD, deltaTime)
+	}
+	if w.GetKey(glfw.KeyS) == glfw.Press {
+		cam.ProcessKeyboard(BACKWARD, deltaTime)
+	}
+	if w.GetKey(glfw.KeyA) == glfw.Press {
+		cam.ProcessKeyboard(LEFT, deltaTime)
+	}
+	if w.GetKey(glfw.KeyD) == glfw.Press {
+		cam.ProcessKeyboard(RIGHT, deltaTime)
+	}
+}
+func MouseCallback(w *glfw.Window, xpos, ypos float64) {
+	if firstMouse {
+		lastX = xpos
+		lastY = ypos
+		firstMouse = false
+	}
+
+	xoffset := float32(xpos - lastX)
+	yoffset := float32(ypos - lastY)
+
+	lastX = xpos
+	lastY = ypos
+	cam.ProcessMouseMovement(xoffset, yoffset)
 }
