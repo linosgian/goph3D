@@ -17,7 +17,9 @@ const (
 	projectRoot  = "src/github.com/linosgian/glfw-test2"
 	fragmentPath = "res/shaders/fragment.glsl"
 	vertexPath   = "res/shaders/vertex.glsl"
-	texturePath  = "res/textures/container.jpg"
+	// texturePath  = "res/textures/container.jpg"
+	metalPath  = "res/textures/metal.png"
+	marblePath = "res/textures/marble.jpg"
 )
 
 const (
@@ -85,6 +87,16 @@ var cube = []float32{
 	-0.5, 0.5, -0.5, 0.0, 1.0,
 }
 
+var planeVertices = []float32{
+	5.0, -0.5, 5.0, 2.0, 0.0,
+	-5.0, -0.5, 5.0, 0.0, 0.0,
+	-5.0, -0.5, -5.0, 0.0, 2.0,
+
+	5.0, -0.5, 5.0, 2.0, 0.0,
+	-5.0, -0.5, -5.0, 0.0, 2.0,
+	5.0, -0.5, -5.0, 2.0, 2.0,
+}
+
 var tri = []float32{
 	// X, Y / R, G, B / S, T
 	-0.5, -0.5, 1, 0, 0, 0, 0,
@@ -123,17 +135,26 @@ func main() {
 	window.SetInputMode(glfw.CursorMode, glfw.CursorDisabled)
 
 	// Instantiate all data needed for rendering
-	vb := NewVertexBuffer(cube, len(cube)*sizes[FLOAT])
-	va := NewVertexArray()
+	cubeVb := NewVertexBuffer(cube, len(cube)*sizes[FLOAT])
+	cubeVa := NewVertexArray()
 
-	vbl := new(VertexBufferLayout)
-	vbl.PushFloat(3) // position: a fvec2
-	// vbl.PushFloat(3) // color: a fvec3
-	vbl.PushFloat(2) // texture: a fvec2
+	cubeVbl := new(VertexBufferLayout)
+	cubeVbl.PushFloat(3) // position: a fvec2
+	cubeVbl.PushFloat(2) // texture: a fvec2
 
-	va.AddBuffer(&vb, vbl)
+	cubeVa.AddBuffer(&cubeVb, cubeVbl)
+	cubeVa.Unbind()
+	cubeVb.Unbind()
 
-	// ib := NewIndexBuffer(cubeIndices)
+	// Instantiate all data needed for rendering
+	planeVb := NewVertexBuffer(planeVertices, len(planeVertices)*sizes[FLOAT])
+	planeVa := NewVertexArray()
+
+	planeVbl := new(VertexBufferLayout)
+	planeVbl.PushFloat(3) // position: a fvec2
+	planeVbl.PushFloat(2) // texture: a fvec2
+
+	planeVa.AddBuffer(&planeVb, planeVbl)
 
 	// Create a new Shader
 	shader, err := NewShader(path.Join(rootPath, vertexPath), path.Join(rootPath, fragmentPath))
@@ -143,19 +164,22 @@ func main() {
 	shader.Bind()
 
 	// Prepare textures
-	t, err := NewTexture(path.Join(rootPath, texturePath))
+	cubeTexture, err := NewTexture(path.Join(rootPath, marblePath))
 	if err != nil {
 		log.Fatalf("could not create texture: %v\n", err)
 	}
-	t.Bind(0)
-	shader.SetUniform1i("u_Texture\x00", 0)
+
+	floorTexture, err := NewTexture(path.Join(rootPath, metalPath))
+	if err != nil {
+		log.Fatalf("could not create texture: %v\n", err)
+	}
 
 	// Initialize renderer
 	r := Renderer{}
 
 	// Clear all state before game loop
-	va.Unbind()
-	vb.Unbind()
+	cubeVa.Unbind()
+	cubeVb.Unbind()
 	shader.Unbind()
 	// ib.Unbind()
 
@@ -170,7 +194,8 @@ func main() {
 
 		processInput(window)
 		// r.Draw(va, ib, shader)
-		r.DrawRaw(va, cam, shader)
+		r.DrawRaw(cubeVa, cubeTexture, cam, shader)
+		r.DrawRawFloor(planeVa, floorTexture, cam, shader)
 
 		window.SwapBuffers()
 		glfw.PollEvents()
