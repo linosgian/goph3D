@@ -4,6 +4,7 @@ import (
 	"github.com/go-gl/gl/v4.3-core/gl"
 )
 
+// NOTE: This is unused currently
 type IndexBuffer struct {
 	rendererID uint32 // A private ID for the object (e.g. OpenGL object ID)
 	count      int    // Count of indices

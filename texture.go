@@ -14,14 +14,14 @@ import (
 )
 
 type Texture struct {
-	rendererID  uint32
-	filepath    string
-	localBuffer []uint8
-	Width       int32
-	Height      int32
-	bpp         int
+	rendererID uint32
+	filepath   string
+	data       []uint8 // Make this public maybe??
+	Width      int32
+	Height     int32
 }
 
+// TODO: Receive all parameters needed, e.g. TEXTURE_WRAP_S
 func NewTexture(filepath string) (*Texture, error) {
 	im, err := ReadImageFile(filepath)
 	if err != nil {
@@ -29,10 +29,10 @@ func NewTexture(filepath string) (*Texture, error) {
 	}
 
 	t := Texture{
-		localBuffer: im.Pix,
-		Width:       int32(im.Rect.Size().X),
-		Height:      int32(im.Rect.Size().Y),
-		filepath:    filepath,
+		data:     im.Pix,
+		Width:    int32(im.Rect.Size().X),
+		Height:   int32(im.Rect.Size().Y),
+		filepath: filepath,
 	}
 
 	gl.GenTextures(1, &t.rendererID)
@@ -43,7 +43,7 @@ func NewTexture(filepath string) (*Texture, error) {
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
 
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, t.Width, t.Height, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(t.localBuffer))
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, t.Width, t.Height, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(t.data))
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	return &t, nil
 }
@@ -77,7 +77,8 @@ func ReadImageFile(filepath string) (*image.NRGBA, error) {
 		return nil, fmt.Errorf("unsupported stride")
 	}
 	draw.Draw(rgba, rgba.Bounds(), im, image.Point{0, 0}, draw.Src)
-	// NOTE: Instead of rotating, the image itself should be rotated
+	// NOTE: Instead of rotating at loading, the image itself should be rotated
 	// already when on disk.
+	// This is needed because OpenGL reads images from the bottom left corner
 	return imaging.Rotate180(rgba), nil
 }

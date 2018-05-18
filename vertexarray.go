@@ -6,6 +6,8 @@ import (
 
 type VertexArray struct {
 	rendererID uint32
+	Vcount     int32 // vertex counter for draw call
+	DataSize   int32 // Size of input data
 }
 
 func NewVertexArray() *VertexArray {

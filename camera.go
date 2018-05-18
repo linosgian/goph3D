@@ -8,6 +8,7 @@ import (
 
 type CameraMovement uint8
 
+// These are just enums in go
 const (
 	FORWARD CameraMovement = iota
 	BACKWARD
@@ -46,6 +47,7 @@ func NewCamera(pos mgl32.Vec3) *Camera {
 	return c
 }
 
+// Returns a matrix with the camera view for OpenGL
 func (c *Camera) GetViewMatrix() mgl32.Mat4 {
 	return mgl32.LookAtV(c.Position, c.Position.Add(c.Front), c.Up)
 }
@@ -69,7 +71,10 @@ func (c *Camera) ProcessMouseMovement(xoffset, yoffset float32) {
 }
 
 func (c *Camera) ProcessKeyboard(direction CameraMovement, deltaTime float64) {
+	// deltaTime between frames is used so that
+	// players with better hardware don't move faster
 	velocity := c.MovementSpeed * float32(deltaTime)
+
 	switch direction {
 	case FORWARD:
 		c.Position = c.Position.Add(c.Front.Mul(velocity))
@@ -83,7 +88,7 @@ func (c *Camera) ProcessKeyboard(direction CameraMovement, deltaTime float64) {
 }
 
 func (c *Camera) updateCameraVectors() {
-	// NOTE: Too many conversions. Maybe wrap this once in a library
+	// NOTE: Too many conversions. Maybe wrap this once in a library (create a math32 library)
 	yaw, pitch := float64(mgl32.DegToRad(c.Yaw)), float64(mgl32.DegToRad(c.Pitch))
 	frontX := float32(math.Cos(yaw) * math.Cos(pitch))
 	frontY := float32(math.Sin(pitch))

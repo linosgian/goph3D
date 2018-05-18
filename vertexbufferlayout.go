@@ -11,6 +11,7 @@ type VertexBufferElement struct {
 type VertexBufferLayout struct {
 	Elements []VertexBufferElement
 	Stride   int32
+	Vcount   int32
 }
 
 func (vbl *VertexBufferLayout) PushFloat(count int32) {
@@ -21,6 +22,7 @@ func (vbl *VertexBufferLayout) PushFloat(count int32) {
 	}
 	vbl.Elements = append(vbl.Elements, e)
 	vbl.Stride += count * int32(sizes[FLOAT])
+	vbl.Vcount += count // This is used to measure triangles at the end
 }
 
 func (vbl *VertexBufferLayout) PushUint(count int32) {
@@ -31,4 +33,5 @@ func (vbl *VertexBufferLayout) PushUint(count int32) {
 	}
 	vbl.Elements = append(vbl.Elements, e)
 	vbl.Stride += count * int32(sizes[UINT32])
+	vbl.Vcount += count // This is used to measure triangles at the end
 }

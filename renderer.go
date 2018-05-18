@@ -1,7 +1,7 @@
 package main
 
 import (
-	"math"
+	"log"
 
 	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
@@ -9,84 +9,112 @@ import (
 )
 
 type Renderer struct {
+	Vas      []*VertexArray
+	Textures []*Texture
+	Shaders  []*Shader
+}
+
+func NewRenderer() *Renderer {
+	return &Renderer{
+		Vas:      make([]*VertexArray, 0),
+		Textures: make([]*Texture, 0),
+		Shaders:  make([]*Shader, 0),
+	}
+}
+
+func (r *Renderer) Init() *glfw.Window {
+	window, err := initGLFW()
+	if err != nil {
+		// These could be propagated to the main function but we're gonna halt anyway
+		log.Fatalf("[GLFW error]: %q", err)
+	}
+	if err := initOpenGL(); err != nil {
+		log.Fatalf("OpenGL could not be initialized: %v\n", err)
+	}
+	return window
+}
+
+func (r *Renderer) Destroy() {
+	glfw.Terminate()
 }
 
 func (r *Renderer) Clear() {
-	gl.ClearColor(0.2, 0.3, 0.3, 1.0)
+	gl.ClearColor(0.2, 0.3, 0.3, 1.0) // Default scene color.
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 }
-func (r *Renderer) DrawRawFloor(va *VertexArray, t *Texture, cam *Camera, s *Shader) error {
+
+func (r *Renderer) DrawRaw(vaID, tID, sID int, cam *Camera, proj, model mgl32.Mat4) error {
+	s := r.Shaders[sID]
+	va := r.Vas[vaID]
+
 	s.Bind()
 	va.Bind()
-	t.Bind(0)
+
+	// TODO: Improve this by holding an ID for the texture instead of loading
+	// it to the first slot all the time
+	// Load the right texture for the object
+	r.Textures[tID].Bind(0)
 	s.SetUniform1i("texture1\x00", 0)
 
+	// Camera
 	view := cam.GetViewMatrix()
 	s.SetMat4("view\x00", &view[0])
 
 	// Perspective matrix
-	proj := mgl32.Perspective(mgl32.DegToRad(45.0), float32(WIDTH)/HEIGHT, 0.1, 100)
 	s.SetMat4("projection\x00", &proj[0])
 
-	// 1st rectangle
-	model := mgl32.Ident4()
+	// Model matrix
 	s.SetMat4("model\x00", &model[0])
-	gl.DrawArrays(gl.TRIANGLES, 0, 6)
+
+	gl.DrawArrays(gl.TRIANGLES, 0, va.DataSize/va.Vcount)
 	return nil
 }
-func (r *Renderer) DrawRaw(va *VertexArray, t *Texture, cam *Camera, s *Shader) error {
-	s.Bind()
-	va.Bind()
-	t.Bind(0)
-	s.SetUniform1i("texture1\x00", 0)
 
-	view := cam.GetViewMatrix()
-	s.SetMat4("view\x00", &view[0])
-
-	// Perspective matrix
-	proj := mgl32.Perspective(mgl32.DegToRad(45.0), float32(WIDTH)/HEIGHT, 0.1, 100)
-	s.SetMat4("projection\x00", &proj[0])
-
-	model := mgl32.Translate3D(-1, 0, -1)
-	s.SetMat4("model\x00", &model[0])
-	gl.DrawArrays(gl.TRIANGLES, 0, 36)
-
-	model = mgl32.Translate3D(2, 0, 0)
-	s.SetMat4("model\x00", &model[0])
-	gl.DrawArrays(gl.TRIANGLES, 0, 36)
-
-	return nil
+// Loads a texture for a specific program (shader)
+// Returns an internal object ID
+func (r *Renderer) LoadTexture(texturePath string, shaderID int) (int, error) {
+	r.Shaders[shaderID].Bind()
+	t, err := NewTexture(texturePath)
+	if err != nil {
+		return 0, err
+	}
+	objID := len(r.Textures)
+	r.Textures = append(r.Textures, t)
+	r.Shaders[shaderID].Unbind()
+	return objID, nil
 }
-func (r *Renderer) Draw(va *VertexArray, ib *IndexBuffer, s *Shader) error {
-	s.Bind()
-	va.Bind()
 
-	var radius float32 = 10
-	camX := float32(math.Sin(glfw.GetTime())) * radius
-	camZ := float32(math.Cos(glfw.GetTime())) * radius
-	view := mgl32.LookAtV(mgl32.Vec3{camX, 0, camZ}, mgl32.Vec3{0, 0, 0}, mgl32.Vec3{0, 1, 0})
-	// Push scene backwards so that everything is visible (or move camera backwards)
-	// view := mgl32.Translate3D(0, 0, -3)
-	s.SetMat4("view\x00", &view[0])
+// Loads a program with both the fragment and vertex shaders
+// Returns an internal object ID
+func (r *Renderer) LoadProgram(vsPath, fsPath string) (int, error) {
+	s, err := NewShader(vsPath, fsPath)
+	if err != nil {
+		return 0, err
+	}
+	objID := len(r.Shaders)
+	r.Shaders = append(r.Shaders, s)
+	return objID, nil
+}
 
-	// Perspective matrix
-	proj := mgl32.Perspective(mgl32.DegToRad(45.0), float32(WIDTH)/HEIGHT, 0.1, 100)
-	s.SetMat4("projection\x00", &proj[0])
+// Loads a vertex buffer
+// Returns an internal object ID
+func (r *Renderer) LoadData(data []float32) (int, error) {
+	vb := NewVertexBuffer(data, len(data)*sizes[FLOAT])
+	va := NewVertexArray()
 
-	// 1st rectangle
-	rotate := mgl32.HomogRotate3D(float32(glfw.GetTime()), mgl32.Vec3{0, 0, 1})
-	trans := mgl32.Translate3D(0.5, -0.5, 0)
-	model := trans.Mul4(rotate) // Rotation -> translation! order of transformation is reversed
-	s.SetMat4("model\x00", &model[0])
-	gl.DrawElements(gl.TRIANGLES, int32(ib.count), gl.UNSIGNED_INT, nil)
+	vbl := new(VertexBufferLayout)
+	vbl.PushFloat(3) // position: a fvec3
+	vbl.PushFloat(2) // texture: a fvec2
 
-	// // 2nd rectangle
-	// scaleNum := float32(math.Sin(glfw.GetTime()))
-	// scale := mgl32.Scale3D(scaleNum, scaleNum, scaleNum)
-	// trans = mgl32.Translate3D(-0.5, 0.5, 0)
-	// model = trans.Mul4(scale) // Rotation -> translation! order of transformation is reversed
-	// s.SetMat4("model\x00", &model[0])
-	// gl.DrawElements(gl.TRIANGLES, int32(ib.count), gl.UNSIGNED_INT, nil)
+	va.Vcount = vbl.Vcount // I DONT LIKE THIS SHIT. Reconsider in the future
+	va.DataSize = int32(len(data))
+	va.AddBuffer(&vb, vbl)
 
-	return nil
+	// State should remain clean after each load
+	va.Unbind()
+	vb.Unbind()
+
+	objID := len(r.Vas)
+	r.Vas = append(r.Vas, va)
+	return objID, nil
 }

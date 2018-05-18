@@ -10,14 +10,14 @@ import (
 )
 
 type Shader struct {
-	rendererID           uint32 // A private ID for the object (e.g. OpenGL object ID)
-	UniformLocationCache map[string]int32
+	rendererID           uint32           // A private ID for the object (e.g. OpenGL object ID)
+	uniformLocationCache map[string]int32 // Cache for uniform locations
 }
 
 func NewShader(vertexPath, fragmentPath string) (*Shader, error) {
 	s := Shader{
 		rendererID:           gl.CreateProgram(),
-		UniformLocationCache: make(map[string]int32),
+		uniformLocationCache: make(map[string]int32),
 	}
 
 	// Compile shaders
@@ -25,7 +25,7 @@ func NewShader(vertexPath, fragmentPath string) (*Shader, error) {
 	if err != nil {
 		return &s, fmt.Errorf("Could not read shader file for vertex shader: %q", err)
 	}
-	// TODO: Concat strings more effeciently
+	// TODO: Concat strings more effeciently and make a wrapper for the null character
 	vsSource := fmt.Sprintf("%s%s", vsf, "\x00") // Make it a C-Style null-terminated string
 	vs, err := s.compileShader(gl.VERTEX_SHADER, vsSource)
 	if err != nil {
@@ -128,11 +128,11 @@ func (s *Shader) SetUniform4f(name string, v0, v1, v2, v3 float32) error {
 
 func (s *Shader) GetUniformLocation(name string) (int32, error) {
 	// Check if it is cached
-	if val, ok := s.UniformLocationCache[name]; ok {
+	if val, ok := s.uniformLocationCache[name]; ok {
 		return val, nil
 	}
 	location := gl.GetUniformLocation(s.rendererID, gl.Str(name))
-	s.UniformLocationCache[name] = location
+	s.uniformLocationCache[name] = location
 	if location == -1 {
 		return 0, fmt.Errorf("Uniform variable location not found: %v", name)
 	}
