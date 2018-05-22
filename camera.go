@@ -31,9 +31,13 @@ type Camera struct {
 	MovementSpeed, Zoom, MouseSensitivity float32
 	// Camera attributes
 	Position, Front, Up, Right, WorldUp mgl32.Vec3
+	// Camera movement
+	// NOTE: Maybe move these into scene instead
+	lastX, lastY float64
+	firstMouse   bool
 }
 
-func NewCamera(pos mgl32.Vec3) *Camera {
+func NewCamera(pos mgl32.Vec3, initX, initY float64) *Camera {
 	c := &Camera{
 		Yaw:              YAW,
 		Pitch:            PITCH,
@@ -42,6 +46,9 @@ func NewCamera(pos mgl32.Vec3) *Camera {
 		Front:            mgl32.Vec3{0, 0, -1},
 		Position:         pos,
 		WorldUp:          mgl32.Vec3{0, 1, 0},
+		lastX:            initX,
+		lastY:            initY,
+		firstMouse:       true,
 	}
 	c.updateCameraVectors()
 	return c

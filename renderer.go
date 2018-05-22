@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"path"
+	"unsafe"
 
 	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
@@ -26,6 +27,11 @@ func NewRenderer() *Renderer {
 	}
 }
 
+func (r *Renderer) InitInputs(w *glfw.Window, c *Camera) {
+	w.SetCursorPosCallback(MouseCallback)
+	w.SetInputMode(glfw.CursorMode, glfw.CursorDisabled) // Disable mouse pointer while playing
+	w.SetUserPointer(unsafe.Pointer(c))                  // This is needed for the mouse callback
+}
 func (r *Renderer) Init() *glfw.Window {
 	window, err := initGLFW()
 	if err != nil {

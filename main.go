@@ -34,11 +34,8 @@ var sizes map[int]int = map[int]int{
 }
 
 var (
-	lastX      float64 = WIDTH / 2.0 // In the middle of the screen
-	lastY      float64 = HEIGHT / 2.0
-	firstMouse bool    = true
-	deltaTime  float64 = 0
-	lastFrame  float64 = 0
+	deltaTime float64 = 0
+	lastFrame float64 = 0
 )
 
 // This should be given temporarily because of vim-go
@@ -56,12 +53,10 @@ func main() {
 	window := r.Init()
 
 	//Initialize camera object at a certain position
-	cam := NewCamera(mgl32.Vec3{0, 0, 7})
+	cam := NewCamera(mgl32.Vec3{0, 0, 7}, WIDTH/2.0, HEIGHT/2.0)
 
-	// NOTE: These are glfw specific - Maybe an issue (?)
-	window.SetCursorPosCallback(MouseCallback)
-	window.SetInputMode(glfw.CursorMode, glfw.CursorDisabled) // Disable mouse pointer while playing
-	window.SetUserPointer(unsafe.Pointer(cam))                // This is needed for the mouse callback
+	// Install callbacks for all inputs
+	r.InitInputs(window, cam)
 
 	// Instantiate all data needed for rendering
 	cubeID, err := r.LoadData(cube)
@@ -188,22 +183,23 @@ func processInput(w *glfw.Window, c *Camera) {
 	}
 }
 func MouseCallback(w *glfw.Window, xpos, ypos float64) {
-	// This solves the issue when the mouse enters the scene
-	// and the camera immediately turns to that point instantly
-	if firstMouse {
-		lastX = xpos
-		lastY = ypos
-		firstMouse = false
-	}
-
-	xoffset := float32(xpos - lastX)
-	yoffset := float32(ypos - lastY)
-
-	lastX = xpos
-	lastY = ypos
-
 	// This is needed so we don't have a global camera variable
 	cam := (*Camera)(w.GetUserPointer())
+
+	// This solves the issue when the mouse enters the scene
+	// and the camera immediately turns to that point instantly
+	if cam.firstMouse {
+		cam.lastX = xpos
+		cam.lastY = ypos
+		cam.firstMouse = false
+	}
+
+	xoffset := float32(xpos - cam.lastX)
+	yoffset := float32(ypos - cam.lastY)
+
+	cam.lastX = xpos
+	cam.lastY = ypos
+
 	cam.ProcessMouseMovement(xoffset, yoffset)
 }
 
