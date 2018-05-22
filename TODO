@@ -1,0 +1,2 @@
+1) Calculate all models' normal matrix in CPU and pass it as uniform
+2) Reuse VBOs by passing either data or an ID to a VBO
