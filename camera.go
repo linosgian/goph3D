@@ -32,7 +32,6 @@ type Camera struct {
 	// Camera attributes
 	Position, Front, Up, Right, WorldUp mgl32.Vec3
 	// Camera movement
-	// NOTE: Maybe move these into scene instead
 	lastX, lastY float64
 	firstMouse   bool
 }

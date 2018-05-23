@@ -8,12 +8,12 @@ type VertexBuffer struct {
 	rendererID uint32 // A private ID for the object (e.g. OpenGL object ID)
 }
 
-func NewVertexBuffer(data []float32, size int) VertexBuffer {
+func NewVertexBuffer(data []float32, size int) *VertexBuffer {
 	vb := VertexBuffer{}
 	gl.GenBuffers(1, &vb.rendererID)
 	gl.BindBuffer(gl.ARRAY_BUFFER, vb.rendererID)
 	gl.BufferData(gl.ARRAY_BUFFER, size, gl.Ptr(data), gl.STATIC_DRAW)
-	return vb
+	return &vb
 }
 
 func (vb *VertexBuffer) Bind() {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"path"
 	"unsafe"
 
@@ -12,36 +11,33 @@ import (
 )
 
 type Renderer struct {
-	Vas          []*VertexArray
+	VAOs         []*VertexArray
 	Textures     []*Texture
 	ProgramNames map[string]int
 	Programs     []*Shader
 }
 
-func NewRenderer() *Renderer {
-	return &Renderer{
-		Vas:          make([]*VertexArray, 0),
+func NewRenderer(w *glfw.Window, c *Camera) (*Renderer, error) {
+	r := &Renderer{
+		VAOs:         make([]*VertexArray, 0),
 		Textures:     make([]*Texture, 0),
 		ProgramNames: make(map[string]int, 0),
 		Programs:     make([]*Shader, 0),
 	}
+	// Load all default shaders
+	if err := r.LoadDefaultPrograms(); err != nil {
+		return nil, err
+	}
+
+	// Install callbacks for all inputs
+	r.InitInputs(w, c)
+	return r, nil
 }
 
 func (r *Renderer) InitInputs(w *glfw.Window, c *Camera) {
 	w.SetCursorPosCallback(MouseCallback)
 	w.SetInputMode(glfw.CursorMode, glfw.CursorDisabled) // Disable mouse pointer while playing
 	w.SetUserPointer(unsafe.Pointer(c))                  // This is needed for the mouse callback
-}
-func (r *Renderer) Init() *glfw.Window {
-	window, err := initGLFW()
-	if err != nil {
-		// These could be propagated to the main function but we're gonna halt anyway
-		log.Fatalf("[GLFW error]: %q", err)
-	}
-	if err := initOpenGL(); err != nil {
-		log.Fatalf("OpenGL could not be initialized: %v\n", err)
-	}
-	return window
 }
 
 func (r *Renderer) Destroy() {
@@ -53,9 +49,9 @@ func (r *Renderer) Clear() {
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 }
 
-func (r *Renderer) DrawRaw(vaID, tID, sID int, cam *Camera, proj, model mgl32.Mat4) error {
-	s := r.Programs[sID]
-	va := r.Vas[vaID]
+func (r *Renderer) DrawRaw(n *Node, cam *Camera, proj mgl32.Mat4) error {
+	s := r.Programs[n.programID]
+	va := r.VAOs[n.vaoID]
 
 	s.Bind()
 	va.Bind()
@@ -63,8 +59,8 @@ func (r *Renderer) DrawRaw(vaID, tID, sID int, cam *Camera, proj, model mgl32.Ma
 	// TODO: Improve this by holding an ID for the texture instead of loading
 	// it to the first slot all the time
 	// Load the right texture for the object
-	r.Textures[tID].Bind(0)
-	s.SetUniform1i("texture1\x00", 0)
+	r.Textures[n.texID].Bind(0)
+	s.SetUniform1i("aTexture\x00", 0)
 
 	// Camera
 	view := cam.GetViewMatrix()
@@ -74,7 +70,7 @@ func (r *Renderer) DrawRaw(vaID, tID, sID int, cam *Camera, proj, model mgl32.Ma
 	s.SetMat4("projection\x00", &proj[0])
 
 	// Model matrix
-	s.SetMat4("model\x00", &model[0])
+	s.SetMat4("model\x00", &n.ModelTrans[0])
 
 	gl.DrawArrays(gl.TRIANGLES, 0, va.DataSize/va.Vcount)
 	return nil
@@ -118,24 +114,24 @@ func (r *Renderer) LoadData(data []float32) (int, error) {
 
 	va.Vcount = vbl.Vcount // I DONT LIKE THIS SHIT. Reconsider in the future
 	va.DataSize = int32(len(data))
-	va.AddBuffer(&vb, vbl)
+	va.AddBuffer(vb, vbl)
 
 	// State should remain clean after each load
 	va.Unbind()
 	vb.Unbind()
 
-	objID := len(r.Vas)
-	r.Vas = append(r.Vas, va)
+	objID := len(r.VAOs)
+	r.VAOs = append(r.VAOs, va)
 	return objID, nil
 }
 
 func (r *Renderer) LoadDefaultPrograms() error {
 	programNames := []string{"basic"}
-	for _, p := range programNames {
+	for _, pName := range programNames {
 		// TODO: Better string concat handling
-		vsPath := path.Join(rootPath, shadersPath, p+"_vertex.glsl")
-		fsPath := path.Join(rootPath, shadersPath, p+"_fragment.glsl")
-		if err := r.loadProgram(p, vsPath, fsPath); err != nil {
+		vsPath := path.Join(rootPath, shadersPath, pName+"_vertex.glsl")
+		fsPath := path.Join(rootPath, shadersPath, pName+"_fragment.glsl")
+		if err := r.loadProgram(pName, vsPath, fsPath); err != nil {
 			return err
 		}
 	}

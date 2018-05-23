@@ -14,17 +14,16 @@ import (
 )
 
 const (
-	fragmentPath = "res/shaders/fragment.glsl"
-	vertexPath   = "res/shaders/vertex.glsl"
-	metalPath    = "res/textures/metal.png"
-	marblePath   = "res/textures/marble.jpg"
-	shadersPath  = "res/shaders"
+	metalPath   = "res/textures/metal.png"
+	marblePath  = "res/textures/marble.jpg"
+	shadersPath = "res/shaders"
 
 	FLOAT  = gl.FLOAT
 	UINT32 = gl.UNSIGNED_INT
 
 	WIDTH  = 800 // These will be in a config file eventually
 	HEIGHT = 600 // And won't be contants
+	FOV    = 45.0
 )
 
 // Calculate the byte-size of all types at runtime
@@ -33,88 +32,79 @@ var sizes map[int]int = map[int]int{
 	UINT32: int(unsafe.Sizeof(uint32(0))),
 }
 
-var (
-	deltaTime float64 = 0
-	lastFrame float64 = 0
-)
-
 // This should be given temporarily because of vim-go
 var rootPath = os.Getenv("PROJ_PATH") // e.g. /home/lgian/go/src/github.com/linosgian/glfw-test2
 
-// This runs before main
 func init() {
-	// This is needed to arrange that main() runs on main thread.
-	runtime.LockOSThread()
+	runtime.LockOSThread() // This is needed to arrange that main() runs on main thread.
 }
 
 func main() {
-	// Initialize GLFW and OpenGL
-	r := NewRenderer()
-	window := r.Init()
+	// Initializes Graphics API and GLFW
+	window := Init()
 
 	//Initialize camera object at a certain position
 	cam := NewCamera(mgl32.Vec3{0, 0, 7}, WIDTH/2.0, HEIGHT/2.0)
+	// Scene perspective
+	proj := mgl32.Perspective(mgl32.DegToRad(FOV), float32(WIDTH)/HEIGHT, 0.1, 100)
 
-	// Install callbacks for all inputs
-	r.InitInputs(window, cam)
+	sc := NewScene(proj, cam)
 
-	// Instantiate all data needed for rendering
-	cubeID, err := r.LoadData(cube)
+	r, err := NewRenderer(window, sc.Cam)
 	if err != nil {
-		log.Fatalf("could not load data: %v\n", err)
-	}
-	planeID, err := r.LoadData(planeVertices)
-	if err != nil {
-		log.Fatalf("could not load data: %v\n", err)
+		log.Fatalf("could not create renderer: %q\n", err)
 	}
 
-	// Load all default shaders
-	if err := r.LoadDefaultPrograms(); err != nil {
-		log.Fatalf("could not shaders: %v\n", err)
-	}
-
-	// Find the program by name
-	shaderID, err := r.GetProgram("basic")
+	// Instantiate all scene nodes and set their model matrices
+	Ncube, err := sc.NewNode(r, true, cube, path.Join(rootPath, marblePath), "basic")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Could not create node: %q\n", err)
 	}
+	Ncube.SetModelMatrix(mgl32.Translate3D(-1, 0, -1))
 
-	// Prepare textures
-	cubeTextureID, err := r.LoadTexture(path.Join(rootPath, marblePath), shaderID)
+	Ncube2, err := sc.NewNode(r, true, cube, path.Join(rootPath, marblePath), "basic")
 	if err != nil {
-		log.Fatalf("could not create texture: %v\n", err)
+		log.Fatalf("Could not create node: %q\n", err)
 	}
+	Ncube2.SetModelMatrix(mgl32.Translate3D(2, 0, 0))
 
-	floorTextureID, err := r.LoadTexture(path.Join(rootPath, metalPath), shaderID)
+	plane, err := sc.NewNode(r, true, planeVertices, path.Join(rootPath, metalPath), "basic")
 	if err != nil {
-		log.Fatalf("could not create texture: %v\n", err)
+		log.Fatalf("Could not create node: %q\n", err)
 	}
+	plane.SetModelMatrix(mgl32.Ident4())
 
 	gl.Enable(gl.DEPTH_TEST)
-
-	// Scene perspective
-	proj := mgl32.Perspective(mgl32.DegToRad(45.0), float32(WIDTH)/HEIGHT, 0.1, 100)
 
 	for !window.ShouldClose() {
 		// Per-frame time. Used for speed normalization
 		currentFrame := glfw.GetTime()
-		deltaTime = currentFrame - lastFrame
-		lastFrame = currentFrame
+		sc.deltaTime = currentFrame - sc.lastFrame
+		sc.lastFrame = currentFrame
 
 		r.Clear()
-		processInput(window, cam)
+		processInput(window, sc)
 
-		model := mgl32.Translate3D(-1, 0, -1) // These transformations will be on Node.Update()
-		r.DrawRaw(cubeID, cubeTextureID, shaderID, cam, proj, model)
-		model = mgl32.Translate3D(2, 0, 0)
-		r.DrawRaw(cubeID, cubeTextureID, shaderID, cam, proj, model)
-		model = mgl32.Ident4()
-		r.DrawRaw(planeID, floorTextureID, shaderID, cam, proj, model)
+		for _, n := range sc.Nodes {
+			r.DrawRaw(n, sc.Cam, sc.Perspective)
+		}
 
 		window.SwapBuffers()
 		glfw.PollEvents()
 	}
 	r.Destroy()
+}
+
+func Init() *glfw.Window {
+	window, err := initGLFW()
+	if err != nil {
+		// These could be propagated to the main function but we're gonna halt anyway
+		log.Fatalf("[GLFW error]: %q", err)
+	}
+	if err := initOpenGL(); err != nil {
+		log.Fatalf("OpenGL could not be initialized: %v\n", err)
+	}
+	return window
 }
 
 func initGLFW() (*glfw.Window, error) {
@@ -165,23 +155,27 @@ func Debug(
 	fmt.Printf("[OpenGL Error]: %q\n", message)
 }
 
-func processInput(w *glfw.Window, c *Camera) {
+func processInput(w *glfw.Window, sc *Scene) {
 	if w.GetKey(glfw.KeyEscape) == glfw.Press {
 		w.SetShouldClose(true)
 	}
 	if w.GetKey(glfw.KeyW) == glfw.Press {
-		c.ProcessKeyboard(FORWARD, deltaTime)
+		sc.Cam.ProcessKeyboard(FORWARD, sc.deltaTime)
 	}
 	if w.GetKey(glfw.KeyS) == glfw.Press {
-		c.ProcessKeyboard(BACKWARD, deltaTime)
+		sc.Cam.ProcessKeyboard(BACKWARD, sc.deltaTime)
 	}
 	if w.GetKey(glfw.KeyA) == glfw.Press {
-		c.ProcessKeyboard(LEFT, deltaTime)
+		sc.Cam.ProcessKeyboard(LEFT, sc.deltaTime)
 	}
 	if w.GetKey(glfw.KeyD) == glfw.Press {
-		c.ProcessKeyboard(RIGHT, deltaTime)
+		sc.Cam.ProcessKeyboard(RIGHT, sc.deltaTime)
+	}
+	if w.GetKey(glfw.KeySpace) == glfw.Press {
+		w.SetShouldClose(true)
 	}
 }
+
 func MouseCallback(w *glfw.Window, xpos, ypos float64) {
 	// This is needed so we don't have a global camera variable
 	cam := (*Camera)(w.GetUserPointer())
