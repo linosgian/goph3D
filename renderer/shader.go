@@ -1,4 +1,4 @@
-package main
+package renderer
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 
 	"github.com/go-gl/gl/v4.3-core/gl"
+	"github.com/go-gl/mathgl/mgl32"
 )
 
 type Shader struct {
@@ -114,6 +115,32 @@ func (s *Shader) SetMat4(name string, v *float32) error {
 		return err
 	}
 	gl.UniformMatrix4fv(location, 1, false, v)
+	return nil
+}
+
+func (s *Shader) setFloat(name string, val float32) error {
+	location, err := s.GetUniformLocation(name)
+	if err != nil {
+		return err
+	}
+	gl.Uniform1f(location, val)
+	return nil
+}
+func (s *Shader) SetVec3f(name string, x, y, z float32) error {
+	location, err := s.GetUniformLocation(name)
+	if err != nil {
+		return err
+	}
+	gl.Uniform3f(location, x, y, z)
+	return nil
+}
+
+func (s *Shader) SetVec3(name string, vec3 mgl32.Vec3) error {
+	location, err := s.GetUniformLocation(name)
+	if err != nil {
+		return err
+	}
+	gl.Uniform3f(location, vec3.X(), vec3.Y(), vec3.Z())
 	return nil
 }
 

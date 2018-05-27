@@ -1,4 +1,4 @@
-package main
+package scene
 
 import (
 	"math"
@@ -19,9 +19,9 @@ const (
 const (
 	YAW         float32 = -90
 	PITCH       float32 = 0
-	SPEED       float32 = 2.5
-	SENSITIVITY float32 = 0.1
-	ZOOM        float32 = 45
+	SPEED       float32 = 2.5 // Keyboard movement
+	SENSITIVITY float32 = 0.1 // Mouse sensitivity
+	ZOOM        float32 = 45  // TODO: Impelement zoom feature
 )
 
 type Camera struct {
@@ -32,8 +32,8 @@ type Camera struct {
 	// Camera attributes
 	Position, Front, Up, Right, WorldUp mgl32.Vec3
 	// Camera movement
-	lastX, lastY float64
-	firstMouse   bool
+	LastX, LastY float64
+	FirstMouse   bool
 }
 
 func NewCamera(pos mgl32.Vec3, initX, initY float64) *Camera {
@@ -45,9 +45,9 @@ func NewCamera(pos mgl32.Vec3, initX, initY float64) *Camera {
 		Front:            mgl32.Vec3{0, 0, -1},
 		Position:         pos,
 		WorldUp:          mgl32.Vec3{0, 1, 0},
-		lastX:            initX,
-		lastY:            initY,
-		firstMouse:       true,
+		LastX:            initX,
+		LastY:            initY,
+		FirstMouse:       true,
 	}
 	c.updateCameraVectors()
 	return c

@@ -1,57 +1,47 @@
-package main
+package renderer
 
 import (
 	"fmt"
+	"os"
 	"path"
-	"unsafe"
 
 	"github.com/go-gl/gl/v4.3-core/gl"
-	"github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/go-gl/mathgl/mgl32"
 )
 
+const (
+	shadersPath = "res/shaders"
+)
+
+// This should be given temporarily because of vim-go
+var rootPath = os.Getenv("PROJ_PATH") // e.g. /home/lgian/go/src/github.com/linosgian/goph3d
+
 type Renderer struct {
-	VAOs         []*VertexArray
-	Textures     []*Texture
-	ProgramNames map[string]int
+	vaos         []*VertexArray
+	textures     []*Texture
+	programNames map[string]int
 	Programs     []*Shader
 }
 
-func NewRenderer(w *glfw.Window, c *Camera) (*Renderer, error) {
+func NewRenderer() (*Renderer, error) {
 	r := &Renderer{
-		VAOs:         make([]*VertexArray, 0),
-		Textures:     make([]*Texture, 0),
-		ProgramNames: make(map[string]int, 0),
+		vaos:         make([]*VertexArray, 0),
+		textures:     make([]*Texture, 0),
+		programNames: make(map[string]int, 0),
 		Programs:     make([]*Shader, 0),
 	}
+
 	// Load all default shaders
 	if err := r.LoadDefaultPrograms(); err != nil {
 		return nil, err
 	}
-
-	// Install callbacks for all inputs
-	r.InitInputs(w, c)
 	return r, nil
+
 }
 
-func (r *Renderer) InitInputs(w *glfw.Window, c *Camera) {
-	w.SetCursorPosCallback(MouseCallback)
-	w.SetInputMode(glfw.CursorMode, glfw.CursorDisabled) // Disable mouse pointer while playing
-	w.SetUserPointer(unsafe.Pointer(c))                  // This is needed for the mouse callback
-}
-
-func (r *Renderer) Destroy() {
-	glfw.Terminate()
-}
-
-func (r *Renderer) Clear() {
-	gl.ClearColor(0.2, 0.3, 0.3, 1.0) // Default scene color.
-	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-}
-
-func (r *Renderer) DrawRaw(n *Node, cam *Camera, proj mgl32.Mat4) error {
-	s := r.Programs[n.programID]
-	va := r.VAOs[n.vaoID]
+func (r *Renderer) DrawRaw(vaoID, programID, texID int, view, proj, model mgl32.Mat4) error {
+	s := r.Programs[programID]
+	va := r.vaos[vaoID]
 
 	s.Bind()
 	va.Bind()
@@ -59,18 +49,17 @@ func (r *Renderer) DrawRaw(n *Node, cam *Camera, proj mgl32.Mat4) error {
 	// TODO: Improve this by holding an ID for the texture instead of loading
 	// it to the first slot all the time
 	// Load the right texture for the object
-	r.Textures[n.texID].Bind(0)
+	r.textures[texID].Bind(0)
 	s.SetUniform1i("aTexture\x00", 0)
 
 	// Camera
-	view := cam.GetViewMatrix()
 	s.SetMat4("view\x00", &view[0])
 
 	// Perspective matrix
 	s.SetMat4("projection\x00", &proj[0])
 
 	// Model matrix
-	s.SetMat4("model\x00", &n.ModelTrans[0])
+	s.SetMat4("model\x00", &model[0])
 
 	gl.DrawArrays(gl.TRIANGLES, 0, va.DataSize/va.Vcount)
 	return nil
@@ -84,8 +73,8 @@ func (r *Renderer) LoadTexture(texturePath string, programID int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	objID := len(r.Textures)
-	r.Textures = append(r.Textures, t)
+	objID := len(r.textures)
+	r.textures = append(r.textures, t)
 	r.Programs[programID].Unbind()
 	return objID, nil
 }
@@ -97,7 +86,7 @@ func (r *Renderer) loadProgram(progName, vsPath, fsPath string) error {
 	if err != nil {
 		return err
 	}
-	r.ProgramNames[progName] = len(r.Programs)
+	r.programNames[progName] = len(r.Programs)
 	r.Programs = append(r.Programs, s)
 	return nil
 }
@@ -111,6 +100,7 @@ func (r *Renderer) LoadData(data []float32) (int, error) {
 	vbl := new(VertexBufferLayout)
 	vbl.PushFloat(3) // position: a fvec3
 	vbl.PushFloat(2) // texture: a fvec2
+	vbl.PushFloat(3) // Normals: a fvec2
 
 	va.Vcount = vbl.Vcount // I DONT LIKE THIS SHIT. Reconsider in the future
 	va.DataSize = int32(len(data))
@@ -120,17 +110,19 @@ func (r *Renderer) LoadData(data []float32) (int, error) {
 	va.Unbind()
 	vb.Unbind()
 
-	objID := len(r.VAOs)
-	r.VAOs = append(r.VAOs, va)
+	objID := len(r.vaos)
+	r.vaos = append(r.vaos, va)
 	return objID, nil
 }
 
+// Loads all default shader programs
+// For any new program name added to programNames
+// we expect to find <name>_vertex.glsl and <name>_fragment.glsl under the shadersPath
 func (r *Renderer) LoadDefaultPrograms() error {
-	programNames := []string{"basic"}
+	programNames := []string{"basic", "phong", "lamp"}
 	for _, pName := range programNames {
-		// TODO: Better string concat handling
-		vsPath := path.Join(rootPath, shadersPath, pName+"_vertex.glsl")
-		fsPath := path.Join(rootPath, shadersPath, pName+"_fragment.glsl")
+		vsPath := path.Join(rootPath, shadersPath, fmt.Sprintf("%s_vertex.glsl", pName))
+		fsPath := path.Join(rootPath, shadersPath, fmt.Sprintf("%s_fragment.glsl", pName))
 		if err := r.loadProgram(pName, vsPath, fsPath); err != nil {
 			return err
 		}
@@ -138,8 +130,10 @@ func (r *Renderer) LoadDefaultPrograms() error {
 	return nil
 }
 
+// Find a program ID by name
+// The returned ID is the internal one
 func (r *Renderer) GetProgram(progName string) (int, error) {
-	if pID, ok := r.ProgramNames[progName]; ok {
+	if pID, ok := r.programNames[progName]; ok {
 		return pID, nil
 	}
 	return 0, fmt.Errorf("Could not find a program by that name: %q", progName)

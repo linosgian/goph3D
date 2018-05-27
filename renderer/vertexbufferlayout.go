@@ -1,4 +1,4 @@
-package main
+package renderer
 
 import "github.com/go-gl/gl/v4.3-core/gl"
 
