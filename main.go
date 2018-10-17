@@ -9,16 +9,17 @@ import (
 	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/kpelelis/go-engine/objloader"
 	"github.com/linosgian/goph3d/renderer"
 	"github.com/linosgian/goph3d/scene"
 	"github.com/linosgian/goph3d/window"
 )
 
 const (
-	metalPath  = "res/textures/metal.png"
+	metalPath  = "res/textures/wood.png"
 	marblePath = "res/textures/marble.jpg"
 
-	FOV = 45.0
+	FOV = 55.0
 )
 
 // This should be given temporarily because of vim-go
@@ -40,10 +41,25 @@ func main() {
 	}
 
 	// Temp: Light position
-	lightPos := mgl32.Vec3{1.2, 3, 2}
+	lightPos := mgl32.Vec3{1.2, 2.3, 2}
 
 	aspectRatio := float32(window.WIDTH) / window.HEIGHT
-	sc := scene.NewScene(aspectRatio, cam, lightPos)
+
+	// Create all Point lights
+	lights := make([]*scene.PointLight, 0)
+	for _, lpos := range PointLightPositions {
+		l := &scene.PointLight{
+			Position:  lpos,
+			Ambient:   mgl32.Vec3{0.05, 0.05, 0.05},
+			Diffuse:   mgl32.Vec3{0.8, 0.8, 0.8},
+			Specular:  mgl32.Vec3{1, 1, 1},
+			Constant:  1,
+			Linear:    0.09,
+			Quadratic: 0.032,
+		}
+		lights = append(lights, l)
+	}
+	sc := scene.NewScene(aspectRatio, cam, lights)
 
 	r, err := renderer.NewRenderer()
 	if err != nil {
@@ -52,6 +68,13 @@ func main() {
 
 	// Instantiate all scene nodes and set their model matrices
 	// -----------------------------
+	reader, err := objloader.New("/home/lgian/Desktop/obj.obj")
+	if err != nil {
+		log.Fatalf("Could not read file: %q\n", err)
+	}
+	reader.Read()
+	reader.Close()
+	cube := reader.ExportToFloat32Array()[0]
 	if err := sc.NewNodes(r, "crate", true, cube, path.Join(rootPath, marblePath), "phong", cubePositions); err != nil {
 		log.Fatalf("Could not create node: %q\n", err)
 	}
@@ -60,13 +83,14 @@ func main() {
 		log.Fatalf("Could not create node: %q\n", err)
 	}
 
-	if err := sc.NewNode(r, "plane", true, planeVertices, path.Join(rootPath, metalPath), "basic", mgl32.Vec3{0, 0, 0}); err != nil {
+	if err := sc.NewNode(r, "plane", true, planeVertices, path.Join(rootPath, metalPath), "phong", mgl32.Vec3{0, 0, 0}); err != nil {
 		log.Fatalf("Could not create node: %q\n", err)
 	}
 	// ----------------------------
 
 	gl.Enable(gl.DEPTH_TEST)
 
+	sc.InitLights(r)
 	for !w.ShouldClose() {
 		// Per-frame time. Used for speed normalization
 		currentFrame := glfw.GetTime()
@@ -79,6 +103,7 @@ func main() {
 		// Update everything per-frame
 		sc.Update(r)
 
+		// Rotate all crates according to current time
 		view := sc.Cam.GetViewMatrix()
 		rot := mgl32.HomogRotate3D(float32(glfw.GetTime()), mgl32.Vec3{0, 1, 0})
 		for _, n := range sc.Nodes {
@@ -144,57 +169,65 @@ var cubePositions = []mgl32.Vec3{
 	mgl32.Vec3{4, 7, 2},
 	mgl32.Vec3{9, 4, 1},
 }
-var cube = []float32{
-	// X,Y,Z / U,V / Nx, Ny, Nz
-	-0.5, -0.5, -0.5, 0.0, 0.0, 0.0, 0.0, -1.0,
-	0.5, -0.5, -0.5, 1.0, 0.0, 0.0, 0.0, -1.0,
-	0.5, 0.5, -0.5, 1.0, 1.0, 0.0, 0.0, -1.0,
-	0.5, 0.5, -0.5, 1.0, 1.0, 0.0, 0.0, -1.0,
-	-0.5, 0.5, -0.5, 0.0, 1.0, 0.0, 0.0, -1.0,
-	-0.5, -0.5, -0.5, 0.0, 0.0, 0.0, 0.0, -1.0,
 
-	-0.5, -0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0,
-	0.5, -0.5, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0,
-	0.5, 0.5, 0.5, 1.0, 1.0, 0.0, 0.0, 1.0,
-	0.5, 0.5, 0.5, 1.0, 1.0, 0.0, 0.0, 1.0,
-	-0.5, 0.5, 0.5, 0.0, 1.0, 0.0, 0.0, 1.0,
-	-0.5, -0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0,
-
-	-0.5, 0.5, 0.5, 1.0, 0.0, -1.0, 0.0, 0.0,
-	-0.5, 0.5, -0.5, 1.0, 1.0, -1.0, 0.0, 0.0,
-	-0.5, -0.5, -0.5, 0.0, 1.0, -1.0, 0.0, 0.0,
-	-0.5, -0.5, -0.5, 0.0, 1.0, -1.0, 0.0, 0.0,
-	-0.5, -0.5, 0.5, 0.0, 0.0, -1.0, 0.0, 0.0,
-	-0.5, 0.5, 0.5, 1.0, 0.0, -1.0, 0.0, 0.0,
-
-	0.5, 0.5, 0.5, 1.0, 0.0, 1.0, 0.0, 0.0,
-	0.5, 0.5, -0.5, 1.0, 1.0, 1.0, 0.0, 0.0,
-	0.5, -0.5, -0.5, 0.0, 1.0, 1.0, 0.0, 0.0,
-	0.5, -0.5, -0.5, 0.0, 1.0, 1.0, 0.0, 0.0,
-	0.5, -0.5, 0.5, 0.0, 0.0, 1.0, 0.0, 0.0,
-	0.5, 0.5, 0.5, 1.0, 0.0, 1.0, 0.0, 0.0,
-
-	-0.5, -0.5, -0.5, 0.0, 1.0, 0.0, -1.0, 0.0,
-	0.5, -0.5, -0.5, 1.0, 1.0, 0.0, -1.0, 0.0,
-	0.5, -0.5, 0.5, 1.0, 0.0, 0.0, -1.0, 0.0,
-	0.5, -0.5, 0.5, 1.0, 0.0, 0.0, -1.0, 0.0,
-	-0.5, -0.5, 0.5, 0.0, 0.0, 0.0, -1.0, 0.0,
-	-0.5, -0.5, -0.5, 0.0, 1.0, 0.0, -1.0, 0.0,
-
-	-0.5, 0.5, -0.5, 0.0, 1.0, 0.0, 1.0, 0.0,
-	0.5, 0.5, -0.5, 1.0, 1.0, 0.0, 1.0, 0.0,
-	0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 1.0, 0.0,
-	0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 1.0, 0.0,
-	-0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 1.0, 0.0,
-	-0.5, 0.5, -0.5, 0.0, 1.0, 0.0, 1.0, 0.0,
+var PointLightPositions = []mgl32.Vec3{
+	mgl32.Vec3{0.7, 0.2, 2},
+	mgl32.Vec3{2.3, 10, 4},
+	mgl32.Vec3{4, 3, 5},
+	mgl32.Vec3{1, 2, 12},
 }
 
-var planeVertices = []float32{
-	10.0, -0.5, 10.0, 2.0, 0.0, 1.0, 0.0, 0.0,
-	-10.0, -0.5, 10.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-	-10.0, -0.5, -10.0, 0.0, 2.0, 1.0, 0.0, 0.0,
+// var cube = []float32{
+// 	// X,Y,Z / U,V / Nx, Ny, Nz
+// 	-0.5, -0.5, -0.5, 0.0, 0.0, 0.0, 0.0, -1.0,
+// 	0.5, -0.5, -0.5, 1.0, 0.0, 0.0, 0.0, -1.0,
+// 	0.5, 0.5, -0.5, 1.0, 1.0, 0.0, 0.0, -1.0,
+// 	0.5, 0.5, -0.5, 1.0, 1.0, 0.0, 0.0, -1.0,
+// 	-0.5, 0.5, -0.5, 0.0, 1.0, 0.0, 0.0, -1.0,
+// 	-0.5, -0.5, -0.5, 0.0, 0.0, 0.0, 0.0, -1.0,
 
-	10.0, -0.5, 10.0, 2.0, 0.0, 1.0, 0.0, 0.0,
-	-10.0, -0.5, -10.0, 0.0, 2.0, 1.0, 0.0, 0.0,
-	10.0, -0.5, -10.0, 2.0, 2.0, 1.0, 0.0, 0.0,
+// 	-0.5, -0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0,
+// 	0.5, -0.5, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0,
+// 	0.5, 0.5, 0.5, 1.0, 1.0, 0.0, 0.0, 1.0,
+// 	0.5, 0.5, 0.5, 1.0, 1.0, 0.0, 0.0, 1.0,
+// 	-0.5, 0.5, 0.5, 0.0, 1.0, 0.0, 0.0, 1.0,
+// 	-0.5, -0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0,
+
+// 	-0.5, 0.5, 0.5, 1.0, 0.0, -1.0, 0.0, 0.0,
+// 	-0.5, 0.5, -0.5, 1.0, 1.0, -1.0, 0.0, 0.0,
+// 	-0.5, -0.5, -0.5, 0.0, 1.0, -1.0, 0.0, 0.0,
+// 	-0.5, -0.5, -0.5, 0.0, 1.0, -1.0, 0.0, 0.0,
+// 	-0.5, -0.5, 0.5, 0.0, 0.0, -1.0, 0.0, 0.0,
+// 	-0.5, 0.5, 0.5, 1.0, 0.0, -1.0, 0.0, 0.0,
+
+// 	0.5, 0.5, 0.5, 1.0, 0.0, 1.0, 0.0, 0.0,
+// 	0.5, 0.5, -0.5, 1.0, 1.0, 1.0, 0.0, 0.0,
+// 	0.5, -0.5, -0.5, 0.0, 1.0, 1.0, 0.0, 0.0,
+// 	0.5, -0.5, -0.5, 0.0, 1.0, 1.0, 0.0, 0.0,
+// 	0.5, -0.5, 0.5, 0.0, 0.0, 1.0, 0.0, 0.0,
+// 	0.5, 0.5, 0.5, 1.0, 0.0, 1.0, 0.0, 0.0,
+
+// 	-0.5, -0.5, -0.5, 0.0, 1.0, 0.0, -1.0, 0.0,
+// 	0.5, -0.5, -0.5, 1.0, 1.0, 0.0, -1.0, 0.0,
+// 	0.5, -0.5, 0.5, 1.0, 0.0, 0.0, -1.0, 0.0,
+// 	0.5, -0.5, 0.5, 1.0, 0.0, 0.0, -1.0, 0.0,
+// 	-0.5, -0.5, 0.5, 0.0, 0.0, 0.0, -1.0, 0.0,
+// 	-0.5, -0.5, -0.5, 0.0, 1.0, 0.0, -1.0, 0.0,
+
+// 	-0.5, 0.5, -0.5, 0.0, 1.0, 0.0, 1.0, 0.0,
+// 	0.5, 0.5, -0.5, 1.0, 1.0, 0.0, 1.0, 0.0,
+// 	0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 1.0, 0.0,
+// 	0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 1.0, 0.0,
+// 	-0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 1.0, 0.0,
+// 	-0.5, 0.5, -0.5, 0.0, 1.0, 0.0, 1.0, 0.0,
+// }
+
+var planeVertices = []float32{
+	10.0, -0.5, 10.0, 10.0, 0.0, 0.0, 1.0, 0.0,
+	-10.0, -0.5, 10.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+	-10.0, -0.5, -10.0, 0.0, 10.0, 0.0, 1.0, 0.0,
+
+	10.0, -0.5, 10.0, 10.0, 0.0, 0.0, 1.0, 0.0,
+	-10.0, -0.5, -10.0, 0.0, 10.0, 0.0, 1.0, 0.0,
+	10.0, -0.5, -10.0, 10.0, 10.0, 0.0, 1.0, 0.0,
 }

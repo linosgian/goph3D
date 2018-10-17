@@ -95,6 +95,6 @@ func (gw *GlWindow) Destroy() {
 }
 
 func (gw *GlWindow) Clear() {
-	gl.ClearColor(0.2, 0.3, 0.3, 1.0) // Default scene color.
+	gl.ClearColor(0.1, 0.1, 0.1, 1.0) // Default scene color.
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 }

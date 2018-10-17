@@ -101,7 +101,8 @@ func (s *Shader) Unbind() {
 }
 
 func (s *Shader) SetUniform1i(name string, val int32) error {
-	location, err := s.GetUniformLocation(name)
+	nullTermString := fmt.Sprintf("%s\x00", name)
+	location, err := s.GetUniformLocation(nullTermString)
 	if err != nil {
 		return err
 	}
@@ -110,7 +111,8 @@ func (s *Shader) SetUniform1i(name string, val int32) error {
 }
 
 func (s *Shader) SetMat4(name string, v *float32) error {
-	location, err := s.GetUniformLocation(name)
+	nullTermString := fmt.Sprintf("%s\x00", name)
+	location, err := s.GetUniformLocation(nullTermString)
 	if err != nil {
 		return err
 	}
@@ -118,8 +120,9 @@ func (s *Shader) SetMat4(name string, v *float32) error {
 	return nil
 }
 
-func (s *Shader) setFloat(name string, val float32) error {
-	location, err := s.GetUniformLocation(name)
+func (s *Shader) SetFloat(name string, val float32) error {
+	nullTermString := fmt.Sprintf("%s\x00", name)
+	location, err := s.GetUniformLocation(nullTermString)
 	if err != nil {
 		return err
 	}
@@ -127,7 +130,8 @@ func (s *Shader) setFloat(name string, val float32) error {
 	return nil
 }
 func (s *Shader) SetVec3f(name string, x, y, z float32) error {
-	location, err := s.GetUniformLocation(name)
+	nullTermString := fmt.Sprintf("%s\x00", name)
+	location, err := s.GetUniformLocation(nullTermString)
 	if err != nil {
 		return err
 	}
@@ -136,7 +140,8 @@ func (s *Shader) SetVec3f(name string, x, y, z float32) error {
 }
 
 func (s *Shader) SetVec3(name string, vec3 mgl32.Vec3) error {
-	location, err := s.GetUniformLocation(name)
+	nullTermString := fmt.Sprintf("%s\x00", name)
+	location, err := s.GetUniformLocation(nullTermString)
 	if err != nil {
 		return err
 	}
@@ -145,7 +150,8 @@ func (s *Shader) SetVec3(name string, vec3 mgl32.Vec3) error {
 }
 
 func (s *Shader) SetUniform4f(name string, v0, v1, v2, v3 float32) error {
-	location, err := s.GetUniformLocation(name)
+	nullTermString := fmt.Sprintf("%s\x00", name)
+	location, err := s.GetUniformLocation(nullTermString)
 	if err != nil {
 		return err
 	}
@@ -154,11 +160,12 @@ func (s *Shader) SetUniform4f(name string, v0, v1, v2, v3 float32) error {
 }
 
 func (s *Shader) GetUniformLocation(name string) (int32, error) {
+	nullTermString := fmt.Sprintf("%s\x00", name)
 	// Check if it is cached
 	if val, ok := s.uniformLocationCache[name]; ok {
 		return val, nil
 	}
-	location := gl.GetUniformLocation(s.rendererID, gl.Str(name))
+	location := gl.GetUniformLocation(s.rendererID, gl.Str(nullTermString))
 	s.uniformLocationCache[name] = location
 	if location == -1 {
 		return 0, fmt.Errorf("Uniform variable location not found: %v", name)
